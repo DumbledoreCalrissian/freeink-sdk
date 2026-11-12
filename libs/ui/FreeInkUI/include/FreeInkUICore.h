@@ -541,6 +541,7 @@ struct TextStyle {
   // Rotated text is single-line; the rect is interpreted in screen space and
   // the text flows along the rotated axis.
   Rotation rotation = Rotation::None;
+  bool strikethrough = false; // Unrotated text only.
 };
 
 // True when `s` is entirely default-constructed. Screen's themed substitution
@@ -549,7 +550,7 @@ struct TextStyle {
 // field (maxLines, align, bold, ...) marks the style as caller-owned.
 inline bool textStyleUnset(const TextStyle &s) {
   return s.font == 0 && s.align == TextAlign::Left && s.color == Color::Black &&
-         s.maxLines == 1 && !s.bold && !s.inverted &&
+         s.maxLines == 1 && !s.bold && !s.inverted && !s.strikethrough &&
          s.rotation == Rotation::None;
 }
 

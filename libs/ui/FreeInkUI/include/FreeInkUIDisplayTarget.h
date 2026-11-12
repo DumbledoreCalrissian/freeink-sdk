@@ -236,7 +236,7 @@ class DisplayTarget final : public DrawTarget {
                                ? invertedColor(style.color)
                                : style.color;
     const bool ink = inkColor == Color::Black;
-    if (style.align == TextAlign::Center && style.rotation == Rotation::None &&
+    if (!style.strikethrough && style.align == TextAlign::Center && style.rotation == Rotation::None &&
         text[0] >= '0' && text[0] <= '9' && text[1] == '\0') {
       const FontGlyph* glyph = glyphFor(f, static_cast<uint32_t>(text[0]));
       if (glyph && glyph->width > 0 && glyph->height > 0 && glyph->width <= rect.width && glyph->height <= rect.height) {
@@ -248,6 +248,13 @@ class DisplayTarget final : public DrawTarget {
     }
     layoutText(*this, rect, text, style, [&](const char* line, const Rect lineRect) {
       drawRun(f, line, lineRect.x, static_cast<int16_t>(lineRect.y + f.ascent), ink, inkColor);
+      if (style.strikethrough && style.rotation == Rotation::None) {
+        const int16_t width = std::min(measureText(style.font, line, style).width, lineRect.width);
+        const int16_t y = static_cast<int16_t>(lineRect.y + f.ascent / 2);
+        if (width > 0 && y >= rect.y && y < rect.bottom())
+          this->line(Point{lineRect.x, y}, Point{static_cast<int16_t>(lineRect.x + width - 1), y}, 1,
+                     Paint::solid(inkColor));
+      }
     });
   }
 

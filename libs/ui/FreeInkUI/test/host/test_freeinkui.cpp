@@ -56,6 +56,7 @@ class FakeDrawTarget : public DrawTarget {
     TextAlign align = TextAlign::Left;
     const uint8_t* bitmapData = nullptr;
     bool bold = false;
+    bool strikethrough = false;
   };
 
   Op ops[256]{};
@@ -98,6 +99,7 @@ class FakeDrawTarget : public DrawTarget {
       ops[opCount - 1].font = style.font;
       ops[opCount - 1].align = style.align;
       ops[opCount - 1].bold = style.bold;
+      ops[opCount - 1].strikethrough = style.strikethrough;
     }
   }
   void bitmap(Rect rect, BitmapRef bitmap, BitmapMode, Paint foreground, Rotation rotation) override {
@@ -1932,6 +1934,78 @@ void testListRtlMirrorsToggleSide() {
   CHECK_EQ(rtlDraw.ops[1].kind, FakeDrawTarget::Op::Fill);
   CHECK_EQ(ltrDraw.ops[1].rect.x, 480 - 38 - 4);  // right edge in LTR
   CHECK_EQ(rtlDraw.ops[1].rect.x, 4);             // left edge (band.x + valueInset) in RTL
+}
+
+void testListIndependentCheckbox() {
+  for (bool rtl : {false, true}) {
+    FakeDrawTarget draw;
+    auto device = makeDevice();
+    InteractionBuffer<8> hits;
+    InputSnapshot input;
+    Frame<8> frame(draw, device, input, hits);
+    ListItem item{};
+    item.label = "completed task";
+    item.actionValue = 7;
+    item.checkbox = true;
+    item.checked = true;
+    item.strikethrough = true;
+    ListProps props;
+    props.items = &item;
+    props.count = 1;
+    props.action = 10;
+    props.checkboxAction = 11;
+    props.rowHeight = 64;
+    props.rowGap = 0;
+    props.scrollIndicator = false;
+    props.rtl = rtl;
+    list(frame, Rect{0, 0, 480, 64}, props);
+    CHECK_EQ(hits.count(), 2u);
+    InputSnapshot tap;
+    tap.touchReleased = true;
+    tap.touchY = 32;
+    tap.touchX = rtl ? 440 : 40;
+    auto event = hits.route(tap);
+    CHECK_EQ(event.action, 11);
+    CHECK_EQ(event.value, 7);
+    tap.touchX = rtl ? 40 : 440;
+    CHECK_EQ(hits.route(tap).action, 10);
+    CHECK_EQ(draw.countKind(FakeDrawTarget::Op::Line), 2u);
+    for (size_t i = 0; i < draw.opCount; ++i)
+      if (draw.ops[i].kind == FakeDrawTarget::Op::Text) CHECK(draw.ops[i].strikethrough);
+    hits.clear();
+    draw.opCount = 0;
+    props.checkboxAction = NO_ACTION;
+    list(frame, Rect{0, 0, 480, 64}, props);
+    CHECK_EQ(hits.count(), 1u);
+    tap.touchX = rtl ? 440 : 40;
+    CHECK_EQ(hits.route(tap).action, 10);
+    hits.clear();
+    item.enabled = false;
+    list(frame, Rect{0, 0, 480, 64}, props);
+    CHECK_EQ(hits.count(), 0u);
+  }
+}
+
+void testWrappedStrikethrough() {
+  constexpr int16_t W = 96, H = 128, WB = W / 8;
+  uint8_t fb[WB * H];
+  std::memset(fb, 0xff, sizeof(fb));
+  DisplayTarget target(fb, W, H, WB, Orientation::LandscapeCounterClockwise);
+  TextStyle style;
+  style.maxLines = 3;
+  style.strikethrough = true;
+  CHECK(!textStyleUnset(style));
+  const Rect rect{4, 4, 60, 100};
+  const char* text = "one two three four five six seven eight nine";
+  target.text(rect, text, style);
+  int lines = 0;
+  layoutText(target, rect, text, style, [&](const char*, Rect lineRect) {
+    ++lines;
+    const int y = lineRect.y + kNotoSansFont.ascent / 2;
+    for (int x = lineRect.x; x < lineRect.right(); ++x) CHECK((fb[y * WB + x / 8] & (0x80 >> (x % 8))) == 0);
+    CHECK((fb[y * WB + (lineRect.right()) / 8] & (0x80 >> (lineRect.right() % 8))) != 0);
+  });
+  CHECK_EQ(lines, 3);
 }
 
 void testButtonRegistersExpandedHit() {
@@ -6092,6 +6166,8 @@ int main() {
   testListCanUseFullTitleWidthWithShortValue();
   testListRtlMirrorsIconAndValueSides();
   testListRtlMirrorsToggleSide();
+  testListIndependentCheckbox();
+  testWrappedStrikethrough();
   testButtonRegistersExpandedHit();
   testProgressBarClamps();
   testBatteryIndicator();

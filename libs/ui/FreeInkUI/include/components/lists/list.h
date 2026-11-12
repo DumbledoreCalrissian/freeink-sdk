@@ -2,6 +2,7 @@
 
 #include "../../FreeInkUICore.h"
 
+#include <algorithm>
 #include <atomic>
 #if __has_include(<BoardConfig.h>)
 #include <BoardConfig.h>
@@ -31,6 +32,9 @@ struct ListItem {
   const char *sectionHeading = nullptr;
   // Emphasize this label without changing row interactivity or list-wide bold text.
   bool bold = false;
+  bool checkbox = false;
+  bool checked = false;
+  bool strikethrough = false;
 };
 
 struct ListNav;
@@ -187,6 +191,9 @@ struct ListProps {
   int16_t rowPaddingY = -1;
   // Draw toggle rows as outlined boxes with an inset fill when checked.
   bool toggleCheckbox = false;
+  // A leading checkbox can have its own touch action; NO_ACTION keeps the row action.
+  ActionId checkboxAction = NO_ACTION;
+  int16_t checkboxWidth = 48;
 };
 
 // Stateful companion to the immediate-mode list helpers in FreeInkUICore.h:
@@ -461,7 +468,8 @@ inline ListRowLayout measureListRow(const DrawTarget &target, AssetResolver *ass
   const BitmapRef icon = item.icon ? item.icon : resolveBitmap(assets, item.iconAsset);
   const int16_t iconSize = icon ? (props.iconSize > 0 ? props.iconSize : icon.width) : 0;
   const int16_t contentWidth = static_cast<int16_t>(width - sidePad * 2 -
-                                                   (icon ? iconSize + props.textGap : 0));
+                                                   (icon ? iconSize + props.textGap : 0) -
+                                                   (item.checkbox ? props.checkboxWidth + props.textGap : 0));
   result.labelWidth = contentWidth;
   if (item.toggle) {
     result.valueWidth = props.toggleWidth < 18 ? 18 : props.toggleWidth;
@@ -766,6 +774,13 @@ void list(Frame<MaxInteractions> &frame, Rect rect, const ListProps &props) {
         hit.y = row.y;
         hit.height = row.height;
       }
+      if (item.checkbox && props.checkboxAction != NO_ACTION) {
+        const int16_t width = std::min<int16_t>(static_cast<int16_t>(props.checkboxWidth + sidePad), hit.width);
+        Rect checkboxHit{props.rtl ? static_cast<int16_t>(hit.right() - width) : hit.x, hit.y, width, hit.height};
+        if (!props.rtl) hit.x = static_cast<int16_t>(hit.x + width);
+        hit.width = static_cast<int16_t>(hit.width - width);
+        frame.hit(checkboxHit, props.checkboxAction, item.actionValue, InputTouch, hitState);
+      }
       frame.hit(hit, props.action, item.actionValue, props.inputMask, hitState);
       if (revealed)
         frame.hit(actionRect, reveal->action, item.actionValue,
@@ -786,10 +801,30 @@ void list(Frame<MaxInteractions> &frame, Rect rect, const ListProps &props) {
 
     Rect content = row.inset(Insets{0, sidePad, 0, sidePad});
 
+    if (item.checkbox) {
+      const int16_t slot = std::min(props.checkboxWidth, content.width);
+      const int16_t size = std::min<int16_t>(24, std::min(slot, content.height));
+      const Rect box{
+          static_cast<int16_t>(props.rtl ? content.right() - slot + (slot - size) / 2 : content.x + (slot - size) / 2),
+          static_cast<int16_t>(content.y + (content.height - size) / 2), size, size};
+      frame.target().stroke(box, style.foreground, 2, 2);
+      if (item.checked) {
+        frame.target().line(Point{static_cast<int16_t>(box.x + 4), static_cast<int16_t>(box.y + size / 2)},
+                            Point{static_cast<int16_t>(box.x + size / 2 - 1), static_cast<int16_t>(box.bottom() - 5)},
+                            2, style.foreground);
+        frame.target().line(Point{static_cast<int16_t>(box.x + size / 2 - 1), static_cast<int16_t>(box.bottom() - 5)},
+                            Point{static_cast<int16_t>(box.right() - 4), static_cast<int16_t>(box.y + 4)}, 2,
+                            style.foreground);
+      }
+      if (!props.rtl) content.x = static_cast<int16_t>(content.x + slot + props.textGap);
+      content.width = static_cast<int16_t>(content.width - slot - props.textGap);
+    }
+
     // Slot layout (mirrors settingRow): the label owns a "title band" and the
     // icon and value align to it; the subtitle spans the full content width
     // under the band so it never collides with the value.
     labelStyle = textStyleWithForeground(labelStyle, style.foreground);
+    labelStyle.strikethrough = item.strikethrough;
     // The band holds every label line the height pre-pass measured (usually
     // one); the subtitle and the row's growth both follow it.
     const int16_t labelBlockH = layout.labelHeight;

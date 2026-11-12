@@ -291,10 +291,16 @@ class GfxRendererTarget final : public DrawTarget {
           }
         }
       }
-      if (dithered && tryDrawTextDither(renderer, fontId, x, drawY, textLine, gfxColor(inkColor), epdStyle, 0)) {
-        return;
+      if (!(dithered && tryDrawTextDither(renderer, fontId, x, drawY, textLine, gfxColor(inkColor), epdStyle, 0))) {
+        renderer.drawText(fontId, x, drawY, textLine, black || dithered, epdStyle);
       }
-      renderer.drawText(fontId, x, drawY, textLine, black || dithered, epdStyle);
+      if (style.strikethrough && style.rotation == Rotation::None) {
+        const int width = std::min(renderer.getTextWidth(fontId, textLine, epdStyle), rect.right() - x);
+        const int strikeY = drawY + renderer.getFontAscenderSize(fontId) / 2;
+        if (width > 0 && strikeY >= rect.y && strikeY < rect.bottom())
+          line(Point{static_cast<int16_t>(x), static_cast<int16_t>(strikeY)},
+               Point{static_cast<int16_t>(x + width - 1), static_cast<int16_t>(strikeY)}, 1, Paint::solid(inkColor));
+      }
     };
 
     // Fast path for the common case: text that already fits on one line draws
