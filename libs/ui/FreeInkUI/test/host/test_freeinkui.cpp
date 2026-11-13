@@ -1936,6 +1936,48 @@ void testListRtlMirrorsToggleSide() {
   CHECK_EQ(rtlDraw.ops[1].rect.x, 4);             // left edge (band.x + valueInset) in RTL
 }
 
+void testListLeadingSlot() {
+  for (bool rtl : {false, true}) {
+    FakeDrawTarget draw;
+    auto device = makeDevice();
+    InteractionBuffer<8> hits;
+    InputSnapshot input;
+    Frame<8> frame(draw, device, input, hits);
+    ListItem items[2]{};
+    items[0].label = "read";
+    items[0].leading = "42%";
+    items[1].label = "unread";
+    ListProps props;
+    props.items = items;
+    props.count = 2;
+    props.rowHeight = 40;
+    props.rowGap = 0;
+    props.sidePadding = 8;
+    props.scrollIndicator = false;
+    props.rtl = rtl;
+    props.leadingWidth = 40;
+    list(frame, Rect{0, 0, 480, 80}, props);
+    // Leading text sits in the slot, aligned toward the label; both labels
+    // start after the slot whether or not the row has leading text.
+    int texts = 0;
+    for (size_t i = 0; i < draw.opCount; ++i) {
+      const auto& op = draw.ops[i];
+      if (op.kind != FakeDrawTarget::Op::Text) continue;
+      ++texts;
+      if (texts == 1) {
+        CHECK_EQ(op.rect.x, rtl ? 480 - 8 - 40 : 8);
+        CHECK_EQ(op.rect.width, 40);
+        CHECK(op.align == (rtl ? TextAlign::Left : TextAlign::Right));
+      } else if (!rtl) {
+        CHECK_EQ(op.rect.x, 8 + 40 + 10);
+      } else {
+        CHECK(op.rect.right() <= 480 - 8 - 40 - 10);
+      }
+    }
+    CHECK_EQ(texts, 3);
+  }
+}
+
 void testListIndependentCheckbox() {
   for (bool rtl : {false, true}) {
     FakeDrawTarget draw;
@@ -6167,6 +6209,7 @@ int main() {
   testListRtlMirrorsIconAndValueSides();
   testListRtlMirrorsToggleSide();
   testListIndependentCheckbox();
+  testListLeadingSlot();
   testWrappedStrikethrough();
   testButtonRegistersExpandedHit();
   testProgressBarClamps();

@@ -35,6 +35,8 @@ struct ListItem {
   bool checkbox = false;
   bool checked = false;
   bool strikethrough = false;
+  // Short text in the props.leadingWidth slot before the icon, such as "42%".
+  const char *leading = nullptr;
 };
 
 struct ListNav;
@@ -194,6 +196,10 @@ struct ListProps {
   // A leading checkbox can have its own touch action; NO_ACTION keeps the row action.
   ActionId checkboxAction = NO_ACTION;
   int16_t checkboxWidth = 48;
+  // Fixed slot before the icon for ListItem::leading, right-aligned. Every row
+  // reserves it so labels stay aligned; 0 (the default) disables the slot.
+  int16_t leadingWidth = 0;
+  TextStyle leadingText{};
 };
 
 // Stateful companion to the immediate-mode list helpers in FreeInkUICore.h:
@@ -469,7 +475,8 @@ inline ListRowLayout measureListRow(const DrawTarget &target, AssetResolver *ass
   const int16_t iconSize = icon ? (props.iconSize > 0 ? props.iconSize : icon.width) : 0;
   const int16_t contentWidth = static_cast<int16_t>(width - sidePad * 2 -
                                                    (icon ? iconSize + props.textGap : 0) -
-                                                   (item.checkbox ? props.checkboxWidth + props.textGap : 0));
+                                                   (item.checkbox ? props.checkboxWidth + props.textGap : 0) -
+                                                   (props.leadingWidth > 0 ? props.leadingWidth + props.textGap : 0));
   result.labelWidth = contentWidth;
   if (item.toggle) {
     result.valueWidth = props.toggleWidth < 18 ? 18 : props.toggleWidth;
@@ -815,6 +822,21 @@ void list(Frame<MaxInteractions> &frame, Rect rect, const ListProps &props) {
         frame.target().line(Point{static_cast<int16_t>(box.x + size / 2 - 1), static_cast<int16_t>(box.bottom() - 5)},
                             Point{static_cast<int16_t>(box.right() - 4), static_cast<int16_t>(box.y + 4)}, 2,
                             style.foreground);
+      }
+      if (!props.rtl) content.x = static_cast<int16_t>(content.x + slot + props.textGap);
+      content.width = static_cast<int16_t>(content.width - slot - props.textGap);
+    }
+
+    if (props.leadingWidth > 0) {
+      const int16_t slot = std::min(props.leadingWidth, content.width);
+      if (item.leading && item.leading[0] != '\0') {
+        TextStyle leadingStyle = textStyleWithForeground(props.leadingText, style.foreground);
+        leadingStyle.maxLines = 1;
+        leadingStyle.align = props.rtl ? TextAlign::Left : TextAlign::Right;
+        const int16_t lh = frame.target().lineHeight(leadingStyle.font);
+        frame.target().text(Rect{static_cast<int16_t>(props.rtl ? content.right() - slot : content.x),
+                                 static_cast<int16_t>(content.y + (content.height - lh) / 2), slot, lh},
+                            item.leading, leadingStyle);
       }
       if (!props.rtl) content.x = static_cast<int16_t>(content.x + slot + props.textGap);
       content.width = static_cast<int16_t>(content.width - slot - props.textGap);
