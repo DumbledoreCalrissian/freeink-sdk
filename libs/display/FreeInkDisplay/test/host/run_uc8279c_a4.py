@@ -47,7 +47,7 @@ class EpdBus {
   uint8_t command=0;
 public:
   unsigned refreshes=0, powerOffs=0, powerOns=0, deepSleeps=0, panelSettings=0;
-  std::vector<uint8_t> commands, lut24;
+  std::vector<uint8_t> commands, lut23, lut24;
   uint8_t interval=0, vcom=0;
   size_t lutBytes=0;
   std::vector<std::vector<uint8_t>> lut20s;
@@ -73,6 +73,7 @@ public:
   void cmdData(uint8_t c, const uint8_t* p, size_t n) {
     if(c==0x82 && n==1) vcom=*p;
     if(c==0x50 && n==1) interval=*p;
+    if(c==0x23) lut23.assign(p,p+n);
     if(c==0x24) lut24.assign(p,p+n);
     if(c==0x20) { lutBytes=n; lut20s.emplace_back(p, p+n); }
     cmd(c);
@@ -99,9 +100,19 @@ public:
 };
 }
 ''')
-    (root / "esp_heap_caps.h").write_text("#pragma once\n#include <cstdlib>\n#define MALLOC_CAP_SPIRAM 1\n#define MALLOC_CAP_8BIT 2\ninline void* heap_caps_malloc(size_t n, int) { return malloc(n); }\n")
+    (root / "esp_heap_caps.h").write_text("""#pragma once
+#include <cstdlib>
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+inline int failOnAllocation = 0;
+inline void* heap_caps_malloc(size_t n, int) {
+  if (failOnAllocation > 0 && --failOnAllocation == 0) return nullptr;
+  return malloc(n);
+}
+""")
     exe = root / "test_uc8279c_a4"
     subprocess.run([os.environ.get("CXX", "c++"), "-std=c++17", "-Wall", "-Wextra",
                     "-Wno-unused-parameter", "-I"+str(root), str(HERE / "test_uc8279c_a4.cpp"),
                     str(root / "driver/Uc8279cA4Driver.cpp"), "-o", str(exe)], check=True)
-    subprocess.run([str(exe)], check=True)
+    for failed_buffer in (1, 2):
+        subprocess.run([str(exe), str(failed_buffer)], check=True)
