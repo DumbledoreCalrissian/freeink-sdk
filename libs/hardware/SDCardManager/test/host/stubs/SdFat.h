@@ -53,6 +53,7 @@ class FsFile {
     return open_ && !fakeSd::rootSyncFails;
   }
   uint64_t fileSize() const { return fakeSd::advertisedSize; }
+  uint64_t size() const { return fileSize(); }
   bool isDirectory() const { return false; }
   bool close() {
     if (open_) ++fakeSd::closes;
@@ -75,7 +76,10 @@ class FsFile {
     return read(&byte, 1) == 1 ? byte : -1;
   }
   FsFile openNextFile() { return FsFile(); }
-  void getName(char*, size_t) const {}
+  size_t getName(char* name, size_t size) const {
+    if (size != 0) name[0] = '\0';
+    return 0;
+  }
   size_t print(const String& text) { return text.size(); }
 
  private:

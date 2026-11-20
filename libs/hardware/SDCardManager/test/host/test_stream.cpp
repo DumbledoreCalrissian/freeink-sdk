@@ -168,6 +168,31 @@ int main() {
   assert(yields == 2 && watchdogResets == 2);
   assert(slowPartial.data == fakeSd::data && fakeSd::closes == 1);
 
+  {
+    SDCardManager unready;
+    reset(8);
+    assert(unready.readFile("/test").empty() && fakeSd::reads == 0);
+  }
+  reset(8);
+  fakeSd::openFails = true;
+  assert(manager.readFile("/test").empty() && fakeSd::reads == 0);
+
+  for (const size_t size : {size_t(0), size_t(8), size_t(769), size_t(50000)}) {
+    reset(size);
+    fakeSd::maxRead = 7;  // short reads must still return the whole file
+    const String text = manager.readFile("/test");
+    assert(std::vector<uint8_t>(text.begin(), text.end()) == fakeSd::data);
+    assert(fakeSd::largestRequest <= 256 && fakeSd::closes == 1);
+  }
+
+  // Too large, or no memory: fail without reading rather than return part of it.
+  reset(50001);
+  assert(manager.readFile("/test").empty() && fakeSd::reads == 0 && fakeSd::closes == 1);
+  reset(8);
+  fakeString::reserveFails = true;
+  assert(manager.readFile("/test").empty() && fakeSd::reads == 0 && fakeSd::closes == 1);
+  fakeString::reserveFails = false;
+
   SDCardManager checked;
   assert(checked.begin());
   for (int fault = 0; fault < 3; ++fault) {

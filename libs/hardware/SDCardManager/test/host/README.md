@@ -11,6 +11,9 @@ after partial output, premature EOF, zero-progress reads, short reads, 64-bit
 file sizes, file closure, uninitialized/open-failure paths, watchdog subscription
 and time-budgeted yields during both ordinary transfers and partial writes.
 The timer rollover case checks unsigned elapsed-time arithmetic.
+`readFile` checks cover whole files up to the 50000-byte limit with short
+reads, and an empty result without reading for a larger file or a failed
+`reserve`.
 
 For host sanitizers:
 
