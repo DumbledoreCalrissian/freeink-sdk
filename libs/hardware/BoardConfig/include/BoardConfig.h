@@ -1829,10 +1829,10 @@ constexpr BoardProfile PICCO = {
     // SDMMC mount keeps it on without the X4 Pro-style power cycle, as stock does.
     {PIN_UNASSIGNED, PIN_UNASSIGNED, PIN_UNASSIGNED, PIN_UNASSIGNED, 0, false, 0, false, false},
     // Buttons: power/wake = GPIO2 (active-low, RTC ext0 wake source). Up = GPIO21 and
-    // Down = GPIO9 (hardware-confirmed). GPIO5 is the remaining input from the stock
-    // button constructor (2, 5, 21, 9); carried as confirm, physical role unconfirmed.
+    // Down = GPIO9 (hardware-confirmed), a rocker. The stock button constructor also
+    // lists GPIO5, but the device has no other key, so confirm is unassigned.
     // Slide switch on GPIO6.
-    {PIN_UNASSIGNED, 5, PIN_UNASSIGNED, PIN_UNASSIGNED, 21, 9, 2, false, PIN_UNASSIGNED, 6},
+    {PIN_UNASSIGNED, PIN_UNASSIGNED, PIN_UNASSIGNED, PIN_UNASSIGNED, 21, 9, 2, false, PIN_UNASSIGNED, 6},
     1,               // batteryAdc: GPIO1 (ADC1, 12 dB attenuation in stock)
     PIN_UNASSIGNED,  // batteryChargeStatus: no STAT pin; charge state comes from the SGM41562
     2.0f,
